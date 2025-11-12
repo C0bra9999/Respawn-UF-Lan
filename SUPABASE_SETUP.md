@@ -1,43 +1,44 @@
-# Supabase setup for Respawn UF LAN
+# Netlify Neon DB setup for Respawn UF LAN
 
-This file explains the minimal steps to make the project work with your Supabase project `ooqgeiedqropzrvfxqjv` and Netlify.
+This project now uses a Postgres database provisioned via Netlify (Neon). The frontend communicates with a Netlify Function (`/.netlify/functions/register`) which performs inserts and returns counts. This keeps DB credentials out of the browser.
 
-1. Create the `registrations` table
+1. Claim or provision the Netlify DB
 
--  Open Supabase dashboard → SQL Editor.
--  Run `supabase/sql/create_registrations_table.sql` (file in repo) or paste its contents.
+-  If you're using the temporary Netlify DB (e.g. `flat-dust-...`), claim it via the Netlify UI so it doesn't expire. See Netlify dashboard → Databases.
 
-2. Environment variables (Netlify)
+2. Create the `registrations` table
+
+-  Open a SQL editor connected to your Netlify Postgres (or run via psql). Run the SQL in `supabase/sql/create_registrations_table.sql` — it's plain Postgres and will work on Neon/Postgres. You can also rename or move the file to `neon/sql/` if you prefer.
+
+3. Environment variables (Netlify)
 
 -  Go to your Netlify site → Site settings → Build & deploy → Environment.
--  Add the following variables:
-   -  `VITE_SUPABASE_URL` = `https://ooqgeiedqropzrvfxqjv.supabase.co`
-   -  `VITE_SUPABASE_ANON_KEY` = (your project's anon/public key)
-   -  `NETLIFY_SUPABASE_SERVICE_ROLE_KEY` = (your project's service_role key) <-- keep secret
+-  Add the following variables (Netlify provides `NETLIFY_DATABASE_URL` automatically if you provision via the Netlify DB UI; otherwise set it yourself):
+   -  `NETLIFY_DATABASE_URL` = (your database connection string)
+   -  `NETLIFY_DATABASE_URL_UNPOOLED` = (optional unpooled connection string)
 
-3. Why the function exists
+4. How it works
 
--  The frontend now calls `/.netlify/functions/register` to create new registrations.
--  The function runs on Netlify and uses the SERVICE_ROLE key (server-side) to insert into Supabase.
--  This prevents exposing the service_role key in the browser.
+-  The frontend calls `/.netlify/functions/register`:
+   -  `GET` returns `{ count }` — the number of registrations.
+   -  `POST` inserts a registration row into `registrations` and returns the updated `{ count }`.
+-  The function uses `@netlify/neon` which automatically reads `NETLIFY_DATABASE_URL`.
 
-4. Local development
+5. Local development
 
--  You can set the `VITE_SUPABASE_ANON_KEY` locally in `.env` (Vite reads `.env` variables starting with `VITE_`).
--  To run Netlify functions locally, use `netlify-cli` or `ntl dev` and set the env vars locally.
+-  To run functions locally, install `netlify-cli` and run `netlify dev` (or `ntl dev`). Ensure `NETLIFY_DATABASE_URL` is set in your local environment or `.env` so the functions can connect.
 
-5. Policies & security
+6. Security
 
--  The SQL file includes permissive RLS policies for development. For production, prefer:
-   -  Keep RLS enabled but _only_ allow select for anon if necessary.
-   -  Use the Netlify function for inserts (as implemented here).
+-  Keep `NETLIFY_DATABASE_URL` secret. Do not commit it to source control. Netlify manages this as an environment variable for deployed functions.
+-  The SQL file included is a simple table creation script and does not include Supabase-specific RLS policies.
 
-6. Verify
+7. Verify
 
--  After deployment, open the site and submit registration. Check Netlify function logs and Supabase table to confirm rows are inserted.
+-  After deployment, open the site and submit a registration. Check Netlify function logs and the Postgres table to confirm rows are inserted.
 
-If you want, I can also:
+If you'd like, I can:
 
--  Add server-side validation in the Netlify function.
--  Return the full list of registrations from the function (beware of large payloads).
--  Add an admin page to list and manage registrations.
+-  Add server-side validation/rate-limiting in the Netlify function.
+-  Add a separate function to return a paginated list of registrations for an admin UI.
+-  Move the SQL file to a `neon/` folder and update docs accordingly.

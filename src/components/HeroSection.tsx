@@ -3,7 +3,6 @@ import { motion } from "motion/react";
 import { Calendar, MapPin, Users, LogIn } from "lucide-react";
 import { Button } from "./ui/button";
 import { eventInfo, heroSection } from "../config/siteConfig";
-import { projectId, publicAnonKey } from "../utils/supabase/info";
 
 // Memoized countdown component to prevent unnecessary re-renders
 const CountdownTimer = memo(
@@ -69,11 +68,8 @@ export function HeroSection() {
 
    const [participantCount, setParticipantCount] = useState(0);
 
-   // Load initial participant count from Supabase (fallback to localStorage). Poll for updates.
+   // Load initial participant count from the Netlify function (fallback to localStorage). Poll for updates.
    useEffect(() => {
-      const SUPABASE_URL = `https://${projectId}.supabase.co`;
-      const SUPABASE_ANON_KEY = publicAnonKey;
-
       const setFromLocal = () => {
          const registrations = JSON.parse(
             localStorage.getItem("lanRegistrations") || "[]"
@@ -84,25 +80,23 @@ export function HeroSection() {
 
       const fetchCount = async () => {
          try {
-            const res = await fetch(
-               `${SUPABASE_URL}/rest/v1/registrations?select=id`,
-               {
-                  headers: {
-                     apikey: SUPABASE_ANON_KEY,
-                     Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-                  },
-               }
-            );
+            const res = await fetch("/.netlify/functions/register", {
+               method: "GET",
+            });
             if (res.ok) {
-               const rows = await res.json();
-               localStorage.setItem("lanRegistrations", JSON.stringify(rows));
-               setParticipantCount(rows.length);
+               const json = await res.json();
+               const count = typeof json.count === "number" ? json.count : 0;
+               // store a lightweight representation in localStorage so other tabs update
+               localStorage.setItem(
+                  "lanRegistrations",
+                  JSON.stringify(new Array(count))
+               );
+               setParticipantCount(Math.min(count, eventInfo.maxParticipants));
                eventInfo.currentParticipants = Math.min(
-                  rows.length,
+                  count,
                   eventInfo.maxParticipants
                );
             } else {
-               // fallback to localStorage if Supabase not accessible
                setFromLocal();
             }
          } catch (err) {

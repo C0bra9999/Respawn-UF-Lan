@@ -7,7 +7,6 @@ import { Label } from "./ui/label";
 import { Checkbox } from "./ui/checkbox";
 import { toast } from "sonner";
 import { eventInfo, registrationSection } from "../config/siteConfig";
-import { projectId, publicAnonKey } from "../utils/supabase/info";
 
 export function RegistrationSection() {
    const [formData, setFormData] = useState({
@@ -67,8 +66,8 @@ export function RegistrationSection() {
             rolesToAssign.push(eventInfo.discordRoles.swishPayment);
          }
 
-         // POST to Netlify function that writes to Supabase with service_role key.
-         // This is more secure than using the service_role key from the client.
+         // POST to Netlify function that writes to the Postgres (Neon) database via NETLIFY_DATABASE_URL.
+         // This keeps DB credentials out of the browser.
          try {
             const payload = {
                name: formData.name,

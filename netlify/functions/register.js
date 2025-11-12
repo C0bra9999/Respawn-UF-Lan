@@ -1,74 +1,56 @@
-// Netlify Function: register
-// Receives POST from frontend and inserts a registration into Supabase using the service_role key.
-// Requires environment variable NETLIFY_SUPABASE_SERVICE_ROLE_KEY (set in Netlify site settings).
+// Netlify Function: register (Neon DB)
+// - POST: insert a registration into the Postgres database referenced by NETLIFY_DATABASE_URL
+// - GET: return the current registrations count
+// Uses the lightweight @netlify/neon helper which reads NETLIFY_DATABASE_URL automatically.
+
+const { neon } = require("@netlify/neon");
 
 exports.handler = async function (event, context) {
    try {
+      const sql = neon();
+
+      if (event.httpMethod === "GET") {
+         // Return a small payload with the current count
+         const rows =
+            await sql`SELECT COUNT(*)::int AS count FROM registrations`;
+         const count =
+            rows && rows[0] && typeof rows[0].count === "number"
+               ? rows[0].count
+               : 0;
+         return { statusCode: 200, body: JSON.stringify({ count }) };
+      }
+
       if (event.httpMethod !== "POST") {
          return { statusCode: 405, body: "Method Not Allowed" };
       }
 
-      const SERVICE_ROLE_KEY =
-         process.env.NETLIFY_SUPABASE_SERVICE_ROLE_KEY ||
-         process.env.SUPABASE_SERVICE_ROLE_KEY;
-      const PROJECT_ID =
-         process.env.SUPABASE_PROJECT_ID || "ooqgeiedqropzrvfxqjv";
-      const SUPABASE_URL =
-         process.env.SUPABASE_URL || `https://${PROJECT_ID}.supabase.co`;
-
-      if (!SERVICE_ROLE_KEY) {
-         return {
-            statusCode: 500,
-            body: "Missing Supabase service role key. Set NETLIFY_SUPABASE_SERVICE_ROLE_KEY in Netlify environment variables.",
-         };
-      }
-
       const payload = JSON.parse(event.body || "{}");
 
-      // Insert row
-      const insertRes = await fetch(`${SUPABASE_URL}/rest/v1/registrations`, {
-         method: "POST",
-         headers: {
-            "Content-Type": "application/json",
-            apikey: SERVICE_ROLE_KEY,
-            Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
-            Prefer: "return=representation",
-         },
-         body: JSON.stringify(payload),
-      });
+      // Basic sanitization / fallback
+      const name = payload.name || null;
+      const email = payload.email || null;
+      const discord = payload.discord || null;
+      const tournaments = payload.tournaments
+         ? JSON.stringify(payload.tournaments)
+         : null;
+      const payment_method = payload.payment_method || null;
 
-      if (!insertRes.ok) {
-         const txt = await insertRes.text();
-         return { statusCode: insertRes.status, body: `Insert failed: ${txt}` };
-      }
+      // Insert into registrations table (assumes table exists)
+      await sql`
+        INSERT INTO registrations (name, email, discord, tournaments, payment_method, created_at)
+        VALUES (${name}, ${email}, ${discord}, ${tournaments}::jsonb, ${payment_method}, now())
+      `;
 
-      // Optionally return updated registrations (or count). We'll return a count to keep payload small.
-      const countRes = await fetch(
-         `${SUPABASE_URL}/rest/v1/registrations?select=id`,
-         {
-            method: "GET",
-            headers: {
-               apikey: SERVICE_ROLE_KEY,
-               Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
-            },
-         }
-      );
+      // Return updated count
+      const rows = await sql`SELECT COUNT(*)::int AS count FROM registrations`;
+      const count =
+         rows && rows[0] && typeof rows[0].count === "number"
+            ? rows[0].count
+            : 0;
 
-      if (!countRes.ok) {
-         const txt = await countRes.text();
-         return {
-            statusCode: 200,
-            body: JSON.stringify({
-               message: "Inserted but failed to fetch count",
-               error: txt,
-            }),
-         };
-      }
-
-      const rows = await countRes.json();
-      return { statusCode: 200, body: JSON.stringify({ count: rows.length }) };
+      return { statusCode: 200, body: JSON.stringify({ count }) };
    } catch (err) {
-      console.error("Function error", err);
+      console.error("register function error", err);
       return { statusCode: 500, body: String(err) };
    }
 };
