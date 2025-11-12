@@ -7,6 +7,7 @@ import { Label } from "./ui/label";
 import { Checkbox } from "./ui/checkbox";
 import { toast } from "sonner";
 import { eventInfo, registrationSection } from "../config/siteConfig";
+import { projectId, publicAnonKey } from "../utils/supabase/info";
 
 export function RegistrationSection() {
    const [formData, setFormData] = useState({
@@ -66,26 +67,68 @@ export function RegistrationSection() {
             rolesToAssign.push(eventInfo.discordRoles.swishPayment);
          }
 
-         // Update participant count in localStorage
-         const registrations = JSON.parse(
-            localStorage.getItem("lanRegistrations") || "[]"
-         );
-         registrations.push({
-            name: formData.name,
-            email: formData.email,
-            discord: formData.discord,
-            timestamp: new Date().toISOString(),
-         });
-         localStorage.setItem(
-            "lanRegistrations",
-            JSON.stringify(registrations)
-         );
+         // Persist registration to Supabase (REST) and update fallback localStorage so all visitors see the updated count.
+         const SUPABASE_URL = `https://${projectId}.supabase.co`;
+         const SUPABASE_ANON_KEY = publicAnonKey;
 
-         // Update eventInfo participant count
-         eventInfo.currentParticipants = Math.min(
-            registrations.length,
-            eventInfo.maxParticipants
-         );
+         try {
+            const payload = {
+               name: formData.name,
+               email: formData.email,
+               discord: formData.discord,
+               tournaments: formData.selectedTournaments,
+               payment_method: formData.paymentMethod,
+               created_at: new Date().toISOString(),
+            };
+
+            const supaRes = await fetch(
+               `${SUPABASE_URL}/rest/v1/registrations`,
+               {
+                  method: "POST",
+                  headers: {
+                     "Content-Type": "application/json",
+                     apikey: SUPABASE_ANON_KEY,
+                     Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+                     Prefer: "return=representation",
+                  },
+                  body: JSON.stringify(payload),
+               }
+            );
+
+            if (!supaRes.ok) {
+               const text = await supaRes.text();
+               console.warn("Supabase insert failed:", text);
+            } else {
+               // if insert succeeded, refresh the count from Supabase
+               try {
+                  const countRes = await fetch(
+                     `${SUPABASE_URL}/rest/v1/registrations?select=id`,
+                     {
+                        headers: {
+                           apikey: SUPABASE_ANON_KEY,
+                           Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+                        },
+                     }
+                  );
+                  if (countRes.ok) {
+                     const rows = await countRes.json();
+                     // Store registrations locally (basic fallback) so other tabs update via storage event
+                     localStorage.setItem(
+                        "lanRegistrations",
+                        JSON.stringify(rows)
+                     );
+                     eventInfo.currentParticipants = Math.min(
+                        rows.length,
+                        eventInfo.maxParticipants
+                     );
+                  }
+               } catch (err) {
+                  console.warn("Failed to fetch registration count", err);
+               }
+            }
+         } catch (err) {
+            console.warn("Supabase request error", err);
+         }
 
          const discordEmbed = {
             content: `@here Ny anmälan mottagen! **Kom ihåg att bjuda in ${formData.discord} till Discord-servern!**`,

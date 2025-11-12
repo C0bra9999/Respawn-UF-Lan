@@ -3,6 +3,7 @@ import { motion } from "motion/react";
 import { Calendar, MapPin, Users, LogIn } from "lucide-react";
 import { Button } from "./ui/button";
 import { eventInfo, heroSection } from "../config/siteConfig";
+import { projectId, publicAnonKey } from "../utils/supabase/info";
 
 // Memoized countdown component to prevent unnecessary re-renders
 const CountdownTimer = memo(
@@ -68,15 +69,54 @@ export function HeroSection() {
 
    const [participantCount, setParticipantCount] = useState(0);
 
-   // Load initial participant count from localStorage
+   // Load initial participant count from Supabase (fallback to localStorage). Poll for updates.
    useEffect(() => {
-      const registrations = JSON.parse(
-         localStorage.getItem("lanRegistrations") || "[]"
-      );
-      setParticipantCount(registrations.length);
-      eventInfo.currentParticipants = registrations.length;
+      const SUPABASE_URL = `https://${projectId}.supabase.co`;
+      const SUPABASE_ANON_KEY = publicAnonKey;
 
-      // Listen for storage changes
+      const setFromLocal = () => {
+         const registrations = JSON.parse(
+            localStorage.getItem("lanRegistrations") || "[]"
+         );
+         setParticipantCount(registrations.length);
+         eventInfo.currentParticipants = registrations.length;
+      };
+
+      const fetchCount = async () => {
+         try {
+            const res = await fetch(
+               `${SUPABASE_URL}/rest/v1/registrations?select=id`,
+               {
+                  headers: {
+                     apikey: SUPABASE_ANON_KEY,
+                     Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+                  },
+               }
+            );
+            if (res.ok) {
+               const rows = await res.json();
+               localStorage.setItem("lanRegistrations", JSON.stringify(rows));
+               setParticipantCount(rows.length);
+               eventInfo.currentParticipants = Math.min(
+                  rows.length,
+                  eventInfo.maxParticipants
+               );
+            } else {
+               // fallback to localStorage if Supabase not accessible
+               setFromLocal();
+            }
+         } catch (err) {
+            setFromLocal();
+         }
+      };
+
+      // initial
+      fetchCount();
+
+      // poll every 10s
+      const interval = setInterval(fetchCount, 10000);
+
+      // Listen for storage changes (other tabs)
       const handleStorageChange = () => {
          const updated = JSON.parse(
             localStorage.getItem("lanRegistrations") || "[]"
@@ -84,9 +124,12 @@ export function HeroSection() {
          setParticipantCount(updated.length);
          eventInfo.currentParticipants = updated.length;
       };
-
       window.addEventListener("storage", handleStorageChange);
-      return () => window.removeEventListener("storage", handleStorageChange);
+
+      return () => {
+         clearInterval(interval);
+         window.removeEventListener("storage", handleStorageChange);
+      };
    }, []);
 
    useEffect(() => {
@@ -163,8 +206,8 @@ export function HeroSection() {
                   className="flex justify-center mb-4 md:mb-8"
                >
                   <img
-                     src="/logo.png"
-                     alt="RESPAWN_UF_LAN_med_neonljus.png"
+                     src="RESPAWN_UF_LAN_med_neonljus.png"
+                     alt=""
                      className="w-32 md:w-48"
                   />
                </motion.div>
