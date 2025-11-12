@@ -162,16 +162,11 @@ export function HeroSection() {
                   transition={{ duration: 0.8, delay: 0.2 }}
                   className="flex justify-center mb-4 md:mb-8"
                >
-                  <div
-                     className="w-32 md:w-48 h-32 md:h-48 bg-gradient-to-br from-green-400 via-blue-500 to-purple-600 rounded-lg shadow-lg flex items-center justify-center text-6xl md:text-8xl font-bold text-white"
-                     style={{
-                        fontFamily: "Orbitron, sans-serif",
-                        boxShadow:
-                           "0 0 30px rgba(34, 197, 94, 0.3), 0 0 60px rgba(168, 85, 247, 0.2)",
-                     }}
-                  >
-                     🎮
-                  </div>
+                  <img
+                     src="/logo.png"
+                     alt="RESPAWN_UF_LAN_med_neonljus.png"
+                     className="w-32 md:w-48"
+                  />
                </motion.div>
                {/* Main Title */}
                <div>
