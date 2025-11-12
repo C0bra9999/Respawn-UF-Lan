@@ -31,7 +31,7 @@ export const eventInfo = {
    price: "75 kr per deltagare",
    totalSlots: "100+ antal platser",
    maxParticipants: 100, // Totalt antal platser
-   currentParticipants: 0, // Uppdateras automatiskt från registreringar
+   currentParticipants: 17, // Uppdateras automatiskt från registreringar
 
    // Kontaktinformation
    email: "respawnuf@gmail.com",
