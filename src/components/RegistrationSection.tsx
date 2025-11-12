@@ -67,10 +67,8 @@ export function RegistrationSection() {
             rolesToAssign.push(eventInfo.discordRoles.swishPayment);
          }
 
-         // Persist registration to Supabase (REST) and update fallback localStorage so all visitors see the updated count.
-         const SUPABASE_URL = `https://${projectId}.supabase.co`;
-         const SUPABASE_ANON_KEY = publicAnonKey;
-
+         // POST to Netlify function that writes to Supabase with service_role key.
+         // This is more secure than using the service_role key from the client.
          try {
             const payload = {
                name: formData.name,
@@ -81,38 +79,33 @@ export function RegistrationSection() {
                created_at: new Date().toISOString(),
             };
 
-            const supaRes = await fetch(
-               `${SUPABASE_URL}/rest/v1/registrations`,
-               {
-                  method: "POST",
-                  headers: {
-                     "Content-Type": "application/json",
-                     apikey: SUPABASE_ANON_KEY,
-                     Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-                     Prefer: "return=representation",
-                  },
-                  body: JSON.stringify(payload),
-               }
-            );
+            const fnRes = await fetch("/.netlify/functions/register", {
+               method: "POST",
+               headers: { "Content-Type": "application/json" },
+               body: JSON.stringify(payload),
+            });
 
-            if (!supaRes.ok) {
-               const text = await supaRes.text();
-               console.warn("Supabase insert failed:", text);
+            if (!fnRes.ok) {
+               const txt = await fnRes.text();
+               console.warn("Register function failed:", txt);
+               // fallback: store locally so page still updates
+               const registrations = JSON.parse(
+                  localStorage.getItem("lanRegistrations") || "[]"
+               );
+               registrations.push(payload);
+               localStorage.setItem(
+                  "lanRegistrations",
+                  JSON.stringify(registrations)
+               );
+               eventInfo.currentParticipants = Math.min(
+                  registrations.length,
+                  eventInfo.maxParticipants
+               );
             } else {
-               // if insert succeeded, refresh the count from Supabase
+               // function succeeded; attempt to use response (optional)
                try {
-                  const countRes = await fetch(
-                     `${SUPABASE_URL}/rest/v1/registrations?select=id`,
-                     {
-                        headers: {
-                           apikey: SUPABASE_ANON_KEY,
-                           Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-                        },
-                     }
-                  );
-                  if (countRes.ok) {
-                     const rows = await countRes.json();
-                     // Store registrations locally (basic fallback) so other tabs update via storage event
+                  const rows = await fnRes.json();
+                  if (Array.isArray(rows)) {
                      localStorage.setItem(
                         "lanRegistrations",
                         JSON.stringify(rows)
@@ -121,13 +114,43 @@ export function RegistrationSection() {
                         rows.length,
                         eventInfo.maxParticipants
                      );
+                  } else if (rows && typeof rows.count === "number") {
+                     // function may return { count }
+                     localStorage.setItem(
+                        "lanRegistrations",
+                        JSON.stringify(new Array(rows.count))
+                     );
+                     eventInfo.currentParticipants = Math.min(
+                        rows.count,
+                        eventInfo.maxParticipants
+                     );
                   }
                } catch (err) {
-                  console.warn("Failed to fetch registration count", err);
+                  console.warn(
+                     "Failed to parse register function response",
+                     err
+                  );
                }
             }
          } catch (err) {
-            console.warn("Supabase request error", err);
+            console.warn("Register function error", err);
+            const registrations = JSON.parse(
+               localStorage.getItem("lanRegistrations") || "[]"
+            );
+            registrations.push({
+               name: formData.name,
+               email: formData.email,
+               discord: formData.discord,
+               created_at: new Date().toISOString(),
+            });
+            localStorage.setItem(
+               "lanRegistrations",
+               JSON.stringify(registrations)
+            );
+            eventInfo.currentParticipants = Math.min(
+               registrations.length,
+               eventInfo.maxParticipants
+            );
          }
 
          const discordEmbed = {
