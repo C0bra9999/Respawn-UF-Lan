@@ -12,14 +12,18 @@ declare global {
    }
 }
 
-// Project ID is safe to keep in repo; keys should come from environment when possible.
+// Project ID is safe to keep in repo; secrets MUST come from environment variables.
 export const projectId = "ooqgeiedqropzrvfxqjv";
 
-// Prefer Vite env vars at build time (prefix VITE_) but fall back to the committed public anon key for dev.
+// Read env variables in a way that works both at build time (Vite import.meta.env)
+// and in Node/server contexts (process.env). Do NOT keep secrets in source code.
+// Use import.meta when available; otherwise fall back to process.env.
 export const publicAnonKey =
-   import.meta.env.VITE_SUPABASE_ANON_KEY ??
-   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9vcWdlaWVkcXJvcHpydmZ4cWp2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA2MTg1MDAsImV4cCI6MjA3NjE5NDUwMH0.MiNKAN2qT-yRVCMORXLRl_FhJzmxmTC515_VHaRbToM";
+   (import.meta as any)?.env?.VITE_SUPABASE_ANON_KEY ||
+   process.env.VITE_SUPABASE_ANON_KEY ||
+   "";
 
-// Full URL (also prefer env if provided)
 export const supabaseUrl =
-   import.meta.env.VITE_SUPABASE_URL ?? `https://${projectId}.supabase.co`;
+   (import.meta as any)?.env?.VITE_SUPABASE_URL ||
+   process.env.VITE_SUPABASE_URL ||
+   `https://${projectId}.supabase.co`;
