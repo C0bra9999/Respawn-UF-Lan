@@ -197,12 +197,12 @@ export function HeroSection() {
                   initial={{ opacity: 0, scale: 0.8 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ duration: 0.8, delay: 0.2 }}
-                  className="flex justify-center mb-4 md:mb-8"
+                  className="flex justify-center mb-2 md:mb-4"
                >
                   <img
                      src="RESPAWN_UF_LAN_med_neonljus.png"
                      alt=""
-                     className="w-32 md:w-48"
+                     className="w-20 md:w-32"
                   />
                </motion.div>
                {/* Main Title */}

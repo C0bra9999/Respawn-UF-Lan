@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 
 export default defineConfig({
+   base: "/Respawn-UF-Lan/",
    plugins: [react()],
    resolve: {
       extensions: [".js", ".jsx", ".ts", ".tsx", ".json"],
@@ -50,12 +51,13 @@ export default defineConfig({
          "@": path.resolve(__dirname, "./src"),
       },
    },
+
    build: {
       target: "esnext",
       outDir: "dist",
    },
    server: {
-      port: 3000,
+      port: 5173,
       open: true,
    },
 });
